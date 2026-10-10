@@ -1,0 +1,26 @@
+[project]
+name = "cgpa-performance-management-system"
+version = "0.1.0"
+description = "Student CGPA Performance Management System - SE Lab Project"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = []
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+addopts = "-v"
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort (import sorting)
+]
+ignore = []
