@@ -29,6 +29,9 @@ def validate_grade_point(grade: Union[int, float, str]) -> float:
     if grade is None:
         raise TypeError("Grade point cannot be None.")
 
+    if isinstance(grade, bool):
+        raise TypeError("Boolean values are not valid grade points.")
+
     try:
         numeric_grade = float(grade)
     except (ValueError, TypeError) as exc:

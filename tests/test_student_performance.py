@@ -5,6 +5,7 @@ import pytest
 from src.student_performance import (
     calculate_cgpa,
     get_performance_category,
+    run_cli,
     validate_grade_point,
 )
 
@@ -13,53 +14,59 @@ from src.student_performance import (
 # ==============================================================================
 
 
-def test_validate_grade_point_valid_floats():
-    """Verify valid float grade points within [0.0, 10.0] are accepted."""
-    assert validate_grade_point(0.0) == 0.0
-    assert validate_grade_point(5.5) == 5.5
-    assert validate_grade_point(10.0) == 10.0
+@pytest.mark.parametrize(
+    "valid_input,expected_output",
+    [
+        (0.0, 0.0),
+        (0, 0.0),
+        (0.01, 0.01),
+        (5.5, 5.5),
+        (9.99, 9.99),
+        (10.0, 10.0),
+        (10, 10.0),
+        ("0.0", 0.0),
+        ("10.0", 10.0),
+        (" 8.75 ", 8.75),
+    ],
+)
+def test_validate_grade_point_valid_inputs(valid_input, expected_output):
+    """Verify valid numeric and string inputs within [0.0, 10.0] are accepted."""
+    assert validate_grade_point(valid_input) == expected_output
 
 
-def test_validate_grade_point_valid_integers_and_strings():
-    """Verify integer and string inputs are converted to floats."""
-    assert validate_grade_point(8) == 8.0
-    assert validate_grade_point(0) == 0.0
-    assert validate_grade_point(10) == 10.0
-    assert validate_grade_point("9.2") == 9.2
-    assert validate_grade_point(" 7.5 ") == 7.5
-
-
-def test_validate_grade_point_out_of_bounds():
+@pytest.mark.parametrize(
+    "invalid_input",
+    [-0.01, -1.0, -10.0, 10.01, 10.1, 15.0, 100.0],
+)
+def test_validate_grade_point_out_of_bounds(invalid_input):
     """Verify that grade points outside [0.0, 10.0] raise ValueError."""
     with pytest.raises(ValueError, match="out of bounds"):
-        validate_grade_point(-0.1)
-
-    with pytest.raises(ValueError, match="out of bounds"):
-        validate_grade_point(-5.0)
-
-    with pytest.raises(ValueError, match="out of bounds"):
-        validate_grade_point(10.1)
-
-    with pytest.raises(ValueError, match="out of bounds"):
-        validate_grade_point(15.0)
+        validate_grade_point(invalid_input)
 
 
-def test_validate_grade_point_non_numeric():
+@pytest.mark.parametrize(
+    "non_numeric_input",
+    ["", "   ", "abc", "A+", "ten", "8.5.2", "@#$"],
+)
+def test_validate_grade_point_non_numeric(non_numeric_input):
     """Verify non-numeric string inputs raise ValueError."""
     with pytest.raises(ValueError, match="Invalid grade point"):
-        validate_grade_point("A+")
-
-    with pytest.raises(ValueError, match="Invalid grade point"):
-        validate_grade_point("excellent")
-
-    with pytest.raises(ValueError, match="Invalid grade point"):
-        validate_grade_point("")
+        validate_grade_point(non_numeric_input)
 
 
 def test_validate_grade_point_none():
     """Verify None input raises TypeError."""
     with pytest.raises(TypeError, match="cannot be None"):
         validate_grade_point(None)
+
+
+def test_validate_grade_point_rejects_booleans():
+    """Verify Boolean values raise TypeError instead of converting to 1.0 or 0.0."""
+    with pytest.raises(TypeError, match="Boolean values are not valid"):
+        validate_grade_point(True)
+
+    with pytest.raises(TypeError, match="Boolean values are not valid"):
+        validate_grade_point(False)
 
 
 # ==============================================================================
@@ -151,3 +158,56 @@ def test_get_performance_category_out_of_bounds():
 
     with pytest.raises(ValueError, match="out of bounds"):
         get_performance_category(10.5)
+
+
+# ==============================================================================
+# 4. Tests for run_cli() (Interactive Simulation)
+# ==============================================================================
+
+
+def test_run_cli_successful_flow(monkeypatch, capsys):
+    """Simulate a complete user interaction from name entry to performance report."""
+    # Inputs: Student Name -> Number of Subjects -> Subject 1 -> Subject 2 -> Subject 3
+    user_inputs = iter(["Alice Johnson", "3", "8.5", "9.0", "9.5"])
+    monkeypatch.setattr("builtins.input", lambda _: next(user_inputs))
+
+    run_cli()
+
+    captured = capsys.readouterr().out
+    assert "STUDENT CGPA PERFORMANCE MANAGEMENT SYSTEM" in captured
+    assert "Student Name        : Alice Johnson" in captured
+    assert "Total Subjects      : 3" in captured
+    assert "Calculated CGPA     : 9.00 / 10.00" in captured
+    assert "Performance Category: Outstanding" in captured
+
+
+def test_run_cli_recovers_from_invalid_inputs(monkeypatch, capsys):
+    """Verify CLI reprompts on empty names, invalid counts, and bad grades."""
+    # Inputs:
+    # 1. Empty name -> Valid Name "Bob Smith"
+    # 2. Invalid count "abc" -> Negative count "-1" -> Valid count "2"
+    # 3. Invalid grade "15.0" -> Non-numeric "A" -> Valid grade "7.0"
+    # 4. Valid grade "8.0"
+    user_inputs = iter([
+        "",
+        "Bob Smith",
+        "abc",
+        "-1",
+        "2",
+        "15.0",
+        "A",
+        "7.0",
+        "8.0",
+    ])
+    monkeypatch.setattr("builtins.input", lambda _: next(user_inputs))
+
+    run_cli()
+
+    captured = capsys.readouterr().out
+    assert "Student name cannot be empty" in captured
+    assert "Please enter a positive integer for number of subjects" in captured
+    assert "Number of subjects must be greater than zero" in captured
+    assert "[Input Error]" in captured
+    assert "Student Name        : Bob Smith" in captured
+    assert "Calculated CGPA     : 7.50 / 10.00" in captured
+    assert "Performance Category: Very Good" in captured
